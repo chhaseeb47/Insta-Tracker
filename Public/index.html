@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Instagram Online Tracker</title>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #1a1a2e, #16213e);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            padding: 20px;
+        }
+        .container {
+            background: rgba(255,255,255,0.03);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            padding: 32px;
+            width: 480px;
+            max-width: 100%;
+            border: 1px solid rgba(255,255,255,0.06);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        }
+        .header { text-align: center; margin-bottom: 28px; }
+        .header h1 {
+            font-size: 22px;
+            background: linear-gradient(135deg, #e94560, #ff6b6b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .header p { font-size: 13px; opacity: 0.5; margin-top: 4px; }
+        
+        .input-row { display: flex; gap: 10px; margin-bottom: 20px; }
+        .input-row input {
+            flex: 1;
+            padding: 12px 16px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(255,255,255,0.06);
+            color: white;
+            font-size: 15px;
+            outline: none;
+            transition: border 0.2s;
+        }
+        .input-row input:focus { border-color: #e94560; }
+        .input-row input::placeholder { color: rgba(255,255,255,0.3); }
+        .input-row button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 14px;
+            white-space: nowrap;
+        }
+        #trackBtn { background: #e94560; color: white; }
+        #trackBtn:hover { background: #d63851; transform: translateY(-1px); }
+        #trackBtn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+        #stopBtn { background: rgba(255,255,255,0.1); color: white; }
+        #stopBtn:hover { background: rgba(255,255,255,0.15); }
+        #stopBtn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+        .status-card {
+            background: rgba(255,255,255,0.04);
+            border-radius: 16px;
+            padding: 24px;
+            text-align: center;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        .status-dot {
+            width: 48px; height: 48px;
+            border-radius: 50%;
+            margin: 0 auto 12px;
+            background: #333;
+            transition: all 0.5s ease;
+        }
+        .status-dot.online { background: #00ff88; box-shadow: 0 0 30px rgba(0,255,136,0.4); }
+        .status-dot.offline { background: #ff4444; box-shadow: 0 0 30px rgba(255,68,68,0.3); }
+        .status-dot.idle { background: #555; }
+        .status-label { font-size: 20px; font-weight: 700; }
+        .status-label.online { color: #00ff88; }
+        .status-label.offline { color: #ff6b6b; }
+        .status-label.idle { color: #888; }
+        .status-sub { font-size: 12px; opacity: 0.4; margin-top: 6px; }
+
+        .section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: #e94560; margin-bottom: 12px; }
+
+        .sound-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 14px; }
+        .sound-btn {
+            padding: 10px;
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 10px;
+            background: rgba(255,255,255,0.04);
+            color: white;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+        .sound-btn:hover { background: rgba(233,69,96,0.1); border-color: rgba(233,69,96,0.3); }
+        .sound-btn.active { background: #e94560; border-color: #e94560; }
+
+        .upload-area {
+            border: 2px dashed rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 18px;
+            text-align: center;
+            margin-bottom: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+        .upload-area:hover { border-color: #e94560; background: rgba(233,69,96,0.04); }
+        .upload-area input { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+        .upload-label { font-size: 13px; opacity: 0.6; }
+        .upload-label span { color: #e94560; }
+
+        .volume-row { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+        .volume-row label { font-size: 13px; opacity: 0.6; min-width: 55px; }
+        .volume-row input[type="range"] {
+            flex: 1;
+            -webkit-appearance: none;
+            height: 4px;
+            background: rgba(255,255,255,0.15);
+            border-radius: 2px;
+            outline: none;
+        }
+        .volume-row input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px; height: 16px;
+            background: #e94560;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        .volume-val { font-size: 13px; min-width: 32px; text-align: right; }
+
+        .test-btn { width: 100%; padding: 10px; border: 1px solid #e94560; border-radius: 10px; background: transparent; color: #e94560; cursor: pointer; font-size: 13px; transition: all 0.2s; }
+        .test-btn:hover { background: rgba(233,69,96,0.08); }
+
+        .log-box {
+            background: rgba(0,0,0,0.3);
+            border-radius: 12px;
+            padding: 14px;
+            height: 200px;
+            overflow-y: auto;
+            font-size: 12px;
+            font-family: 'Courier New', monospace;
+            margin-top: 20px;
+            border: 1px solid rgba(255,255,255,0.04);
+        }
+        .log-entry { padding: 4px 8px; margin: 3px 0; border-left: 3px solid #555; }
+        .log-entry.online { border-left-color: #00ff88; }
+        .log-entry.offline { border-left-color: #ff4444; }
+        .log-entry.info { border-left-color: #4dabf7; }
+        .log-entry.error { border-left-color: #ff6b6b; background: rgba(255,68,68,0.05); }
+        .log-entry.sound { border-left-color: #e94560; background: rgba(233,69,96,0.04); }
+        .log-time { opacity: 0.4; margin-right: 6px; }
+
+        .footer { text-align: center; margin-top: 16px; font-size: 11px; opacity: 0.3; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>👁 Instagram Tracker</h1>
+            <p>Track when someone comes online • Custom sound notification</p>
+        </div>
+
+        <div class="input-row">
+            <input type="text" id="usernameInput" placeholder="Enter Instagram username..." autocomplete="off">
+            <button id="trackBtn">▶ Track</button>
+            <button id="stopBtn" disabled>⏹ Stop</button>
+        </div>
+
+        <div class="status-card">
+            <div class="status-dot idle" id="statusDot"></div>
+            <div class="status-label idle" id="statusLabel">Waiting to start...</div>
+            <div class="status-sub" id="statusSub">Enter a username and click Track</div>
+        </div>
+
+        <div class="section-title">🔊 Custom Notification Sound</div>
+        
+        <div class="sound-grid" id="soundGrid">
+            <button class="sound-btn active" data-sound="alert">🔔 Classic</button>
+            <button class="sound-btn" data-sound="bell">🔔 Door Bell</button>
+            <button class="sound-btn" data-sound="beep">📡 Beep</button>
+            <button class="sound-btn" data-sound="chime">🎵 Chime</button>
+            <button class="sound-btn" data-sound="phone">📞 Phone</button>
+            <button class="sound-btn" data-sound="alarm">🚨 Alarm</button>
+            <button class="sound-btn" data-sound="coin">🪙 Coin</button>
+            <button class="sound-btn" data-sound="notif">💬 Short</button>
+        </div>
+
+        <div class="upload-area" id="uploadArea">
+            <div class="upload-label">
+                📁 Drop your <span>.mp3 / .wav</span> file here<br>
+                <small style="opacity:0.4;">or click to browse</small>
+            </div>
+            <input type="file" id="fileInput" accept=".mp3,.wav,.ogg,.m4a">
+        </div>
+
+        <div class="volume-row">
+            <label>Volume:</label>
+            <input type="range" id="volumeSlider" min="0" max="100" value="80">
+            <span class="volume-val" id="volumeVal">80%</span>
+        </div>
+
+        <button class="test-btn" id="testBtn">▶ Test Sound</button>
+
+        <div class="log-box" id="logBox">
+            <div class="log-entry info"><span class="log-time">●</span> Ready. Enter username to start.</div>
+        </div>
+
+        <div class="footer">Instagram Online Tracker v2.0</div>
+    </div>
+
+    <script>
+        const socket = io();
+        const logBox = document.getElementById('logBox');
+        const statusDot = document.getElementById('statusDot');
+        const statusLabel = document.getElementById('statusLabel');
+        const statusSub = document.getElementById('statusSub');
+        const trackBtn = document.getElementById('trackBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const usernameInput = document.getElementById('usernameInput');
+        const volumeSlider = document.getElementById('volumeSlider');
+        const volumeVal = document.getElementById('volumeVal');
+        const testBtn = document.getElementById('testBtn');
+        const fileInput = document.getElementById('fileInput');
+
+        let isTracking = false;
+        let currentSound = 'alert';
+        let audioCtx = null;
+        let customBuffer = null;
+
+        function getCtx() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            return audioCtx;
+        }
+
+        function getVol() { return parseInt(volumeSlider.value) / 100; }
+
+        function playSound() {
+            const ctx = getCtx();
+            const vol = getVol();
+            
+            if (customBuffer) {
+                const src = ctx.createBufferSource();
+                const gain = ctx.createGain();
+                src.buffer = customBuffer;
+                gain.gain.value = vol;
+                src.connect(gain);
+                gain.connect(ctx.destination);
+                src.start();
+                addLog('🔊 Playing custom sound', 'sound');
+                return;
+            }
+
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            gain.gain.value = vol;
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            
+            const now = ctx.currentTime;
+            
+            switch(currentSound) {
+                case 'alert':
+                    osc.type = 'square';
+                    osc.frequency.value = 880;
+                    gain.gain.setValueAtTime(vol, now);
+                    gain.gain.setValueAtTime(0, now + 0.12);
+                    gain.gain.setValueAtTime(vol, now + 0.18);
+                    gain.gain.setValueAtTime(0, now + 0.3);
+                    osc.start(now); osc.stop(now + 0.3);
+                    break;
+                case 'bell':
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(660, now);
+                    osc.frequency.setValueAtTime(880, now + 0.15);
+                    gain.gain.setValueAtTime(vol, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+                    osc.start(now); osc.stop(now + 0.5);
+                    break;
+                case 'beep':
+                    osc.type = 'sine';
+                    osc.frequency.value = 1000;
+                    gain.gain.setValueAtTime(vol, now);
+                    gain.gain.setValueAtTime(0, now + 0.07);
+                    gain.gain.setValueAtTime(vol, now + 0.1);
+                    gain.gain.setValueAtTime(0, now + 0.18);
+                    osc.start(now); osc.stop(now + 0.2);
+                    break;
+                case 'chime':
+                    osc.type = 'sine';
+                    osc.frequency.value = 523;
+                    gain.gain.setValueAtTime(vol, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+                    osc.start(now); osc.stop(now + 0.8);
+                    break;
+                case 'phone':
+                    osc.type = 'sine';
+                    osc.frequency.value = 440;
+                    gain.gain.setValueAtTime(vol, now);
+                    gain.gain.setValueAtTime(0, now + 0.2);
+                    gain.gain.setValueAtTime(vol, now + 0.28);
+                    gain.gain.setValueAtTime(0, now + 0.48);
+                    gain.gain.setValueAtTime(vol, now + 0.56);
+                    gain.gain.setValueAtTime(0, now + 0.76);
+                    osc.start(now); osc.stop(now + 0.8);
+                    break;
+                case 'alarm':
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(440, now);
+                    osc.frequency.linearRampToValueAtTime(880, now + 0.25);
+                    osc.frequency.linearRampToValueAtTime(440, now + 0.5);
+                    gain.gain.setValueAtTime(vol * 0.6, now);
+                    gain.gain.setValueAtTime(0, now + 0.5);
+                    osc.start(now); osc.stop(now + 0.55);
+                    break;
+                case 'coin':
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(2000, now);
+                    osc.frequency.exponentialRampToValueAtTime(400, now + 0.25);
+                    gain.gain.setValueAtTime(vol, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+                    osc.start(now); osc.stop(now + 0.3);
+                    break;
+                case 'notif':
+                default:
+                    osc.type = 'sine';
+                    osc.frequency.value = 1200;
+                    gain.gain.setValueAtTime(vol, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+                    osc.start(now); osc.stop(now + 0.15);
+                    break;
+            }
+            addLog(`🔊 ${currentSound} sound played`, 'sound');
+        }
+
+        function addLog(msg, type = '') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            const t = new Date().toLocaleTimeString();
+            entry.innerHTML = `<span class="log-time">${t}</span> ${msg}`;
+            logBox.appendChild(entry);
+            logBox.scrollTop = logBox.scrollHeight;
+        }
+
+        function setStatusState(state, label, sub) {
+            statusDot.className = `status-dot ${state}`;
+            statusLabel.className = `status-label ${state}`;
+            statusLabel.textContent = label;
+            statusSub.textContent = sub || '';
+        }
+
+        document.querySelectorAll('.sound-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.sound-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                currentSound = this.dataset.sound;
+                customBuffer = null;
+                fileInput.value = '';
+                addLog(`🎵 Sound: ${this.textContent.trim()}`, 'sound');
+                playSound();
+            });
+        });
+
+        fileInput.addEventListener('change', async function() {
+            const file = this.files[0];
+            if (!file) return;
+            try {
+                const buf = await file.arrayBuffer();
+                const ctx = getCtx();
+                customBuffer = await ctx.decodeAudioData(buf);
+                document.querySelectorAll('.sound-btn').forEach(b => b.classList.remove('active'));
+                addLog(`📁 Loaded: ${file.name} (${(file.size/1024).toFixed(1)}KB)`, 'sound');
+                playSound();
+            } catch(e) {
+                addLog(`❌ Bad audio file: ${e.message}`, 'error');
+                customBuffer = null;
+            }
+        });
+
+        volumeSlider.addEventListener('input', () => {
+            volumeVal.textContent = volumeSlider.value + '%';
+        });
+
+        testBtn.addEventListener('click', playSound);
+
+        trackBtn.addEventListener('click', () => {
+            const username = usernameInput.value.trim();
+            if (!username) {
+                addLog('❌ Please enter a username', 'error');
+                return;
+            }
+            
+            isTracking = true;
+            trackBtn.disabled = true;
+            stopBtn.disabled = false;
+            usernameInput.disabled = true;
+            
+            setStatusState('idle', '🔄 Connecting...', 'Initializing tracker');
+            addLog(`🎯 Starting tracking @${username}...`, 'info');
+            socket.emit('start-tracking', { username });
+        });
+
+        stopBtn.addEventListener('click', () => {
+            isTracking = false;
+            trackBtn.disabled = false;
+            stopBtn.disabled = true;
+            usernameInput.disabled = false;
+            setStatusState('idle', '⏹ Stopped', 'Click Track to start again');
+            addLog('⏹ Tracking stopped', 'info');
+            socket.emit('stop-tracking');
+        });
+
+        socket.on('tracking-started', (data) => {
+            setStatusState('idle', `👁 Monitoring @${data.username}`, 'Waiting for status change...');
+            addLog(`✅ ${data.message}`, 'info');
+        });
+
+        socket.on('tracking-stopped', (data) => {
+            addLog(`⏹ ${data.message}`, 'info');
+        });
+
+        socket.on('status-update', (data) => {
+            if (!isTracking) return;
+            const state = data.online ? 'online' : 'offline';
+            const label = data.online ? '🟢 ONLINE' : '🔴 OFFLINE';
+            const sub = data.lastActiveDisplay ? `Last active: ${data.lastActiveDisplay}` : '';
+            setStatusState(state, label, sub);
+        });
+
+        socket.on('user-came-online', (data) => {
+            addLog(`🎯 ${data.message}`, 'online');
+            playSound();
+            setStatusState('online', '🟢 ONLINE', 'Just came online!');
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification('🎯 Instagram Tracker', {
+                    body: data.message,
+                    icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">👁</text></svg>'
+                });
+            }
+        });
+
+        socket.on('user-went-offline', (data) => {
+            addLog(`⏻ ${data.message}`, 'offline');
+            setStatusState('offline', '🔴 OFFLINE', 'Went offline');
+        });
+
+        socket.on('error', (msg) => {
+            addLog(`❌ ${msg}`, 'error');
+            if (isTracking) {
+                isTracking = false;
+                trackBtn.disabled = false;
+                stopBtn.disabled = true;
+                usernameInput.disabled = false;
+                setStatusState('idle', '⚠️ Error', msg);
+            }
+        });
+
+        socket.on('connect_error', (err) => {
+            addLog(`❌ Connection error: ${err.message}`, 'error');
+            setStatusState('idle', '⚠️ Disconnected', 'Check your internet');
+        });
+
+        socket.on('
