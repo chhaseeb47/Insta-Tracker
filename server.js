@@ -15,8 +15,8 @@ const PORT = 3000;
 // ====================================================
 // ⚠️ YAHI APNA INSTAGRAM USERNAME AUR PASSWORD DAALO
 // ====================================================
-const IG_USERNAME = 'your_instagram_username';
-const IG_PASSWORD = 'your_instagram_password';
+const IG_USERNAME = 'btw_lishy';
+const IG_PASSWORD = 'Haseeb707@';
 // ====================================================
 
 let ig = null;
